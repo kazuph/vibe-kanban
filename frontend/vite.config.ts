@@ -18,6 +18,14 @@ export default defineConfig({
 
   server: {
     port: parseInt(process.env.FRONTEND_PORT || '3000'),
+    host: true, // Listen on all network interfaces
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'macbook-air.tail5f04b.ts.net',
+      'google-pixel-8-pro.tail5f04b.ts.net',
+      '.tail5f04b.ts.net', // Allow all hosts in your tailnet
+    ],
     proxy: {
       '/api': {
         target: `http://localhost:${process.env.BACKEND_PORT || '3001'}`,
