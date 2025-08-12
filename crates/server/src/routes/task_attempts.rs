@@ -538,6 +538,43 @@ pub async fn create_github_pr(
             )));
         }
     }
+    
+    // Check if base branch needs to be pushed to GitHub
+    // If the base branch is a local branch (not main/master/develop and doesn't start with origin/),
+    // try to push it to GitHub as well
+    if !base_branch.starts_with("origin/") 
+        && base_branch != "main" 
+        && base_branch != "master" 
+        && base_branch != "develop" {
+        
+        // Check if the base branch exists locally
+        let git_service = GitService::new();
+        if let Ok(local_branches) = git_service.list_local_branches(&ctx.project.git_repo_path) {
+            if local_branches.contains(&base_branch) {
+                tracing::info!("Base branch '{}' appears to be a local branch, attempting to push to GitHub", base_branch);
+                
+                // Try to push the base branch to GitHub
+                // Note: We use the main repo path, not the worktree path, for the base branch
+                if let Err(e) = git_service.push_branch_to_github(
+                    &ctx.project.git_repo_path,
+                    &base_branch,
+                    &github_token
+                ) {
+                    tracing::warn!("Failed to push base branch '{}' to GitHub: {}. PR creation may fail if this branch doesn't exist on GitHub.", base_branch, e);
+                    
+                    // Return a more helpful error message
+                    return Ok(ResponseJson(ApiResponse::error_with_data(
+                        GitHubServiceError::Branch(format!(
+                            "Base branch '{}' appears to be a local branch that hasn't been pushed to GitHub. Please push it first using: git push origin {}",
+                            base_branch, base_branch
+                        ))
+                    )));
+                } else {
+                    tracing::info!("Successfully pushed base branch '{}' to GitHub", base_branch);
+                }
+            }
+        }
+    }
     // Create the PR using GitHub service
     let pr_request = CreatePrRequest {
         title: request.title.clone(),

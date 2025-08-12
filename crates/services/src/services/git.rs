@@ -920,39 +920,65 @@ impl GitService {
     ) -> Result<(), GitServiceError> {
         let repo = Repository::open(worktree_path)?;
 
-        // Get the remote
-        let remote = repo.find_remote("origin")?;
+        // Get the remote and its URL
+        let mut remote = repo.find_remote("origin")?;
         let remote_url = remote.url().ok_or_else(|| {
             GitServiceError::InvalidRepository("Remote origin has no URL".to_string())
-        })?;
-
-        // Convert SSH URL to HTTPS URL if necessary
-        let https_url = if remote_url.starts_with("git@github.com:") {
-            // Convert git@github.com:owner/repo.git to https://github.com/owner/repo.git
-            remote_url.replace("git@github.com:", "https://github.com/")
-        } else if remote_url.starts_with("ssh://git@github.com/") {
-            // Convert ssh://git@github.com/owner/repo.git to https://github.com/owner/repo.git
-            remote_url.replace("ssh://git@github.com/", "https://github.com/")
-        } else {
-            remote_url.to_string()
-        };
-
-        // Create a temporary remote with HTTPS URL for pushing
-        let temp_remote_name = "temp_https_origin";
-
-        // Remove any existing temp remote
-        let _ = repo.remote_delete(temp_remote_name);
-
-        // Create temporary HTTPS remote
-        let mut temp_remote = repo.remote(temp_remote_name, &https_url)?;
-
+        })?.to_string(); // Convert to owned String to avoid borrow issues
+        
         // Create refspec for pushing the branch
         let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");
 
-        // Set up authentication callback using the GitHub token
-        let mut callbacks = git2::RemoteCallbacks::new();
-        callbacks.credentials(|_url, username_from_url, _allowed_types| {
-            git2::Cred::userpass_plaintext(username_from_url.unwrap_or("git"), github_token)
+        // Set up authentication callbacks that support both SSH and HTTPS
+        let mut callbacks = RemoteCallbacks::new();
+        let token = github_token.to_string(); // Clone for use in closure
+        callbacks.credentials(move |_url, username_from_url, allowed_types| {
+            // For SSH authentication
+            if allowed_types.contains(git2::CredentialType::SSH_KEY) {
+                // Try SSH agent first
+                if let Some(username) = username_from_url {
+                    if let Ok(cred) = Cred::ssh_key_from_agent(username) {
+                        return Ok(cred);
+                    }
+                }
+                
+                // Fallback to SSH key files
+                if let Some(home) = dirs::home_dir() {
+                    // Try common SSH key paths
+                    let key_paths = [
+                        home.join(".ssh").join("id_rsa"),
+                        home.join(".ssh").join("id_ed25519"),
+                        home.join(".ssh").join("id_ecdsa"),
+                    ];
+                    
+                    for key_path in &key_paths {
+                        if key_path.exists() {
+                            if let Ok(cred) = Cred::ssh_key(
+                                username_from_url.unwrap_or("git"),
+                                None,
+                                key_path,
+                                None
+                            ) {
+                                return Ok(cred);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // For HTTPS authentication with GitHub token
+            if allowed_types.contains(git2::CredentialType::USER_PASS_PLAINTEXT) 
+                && remote_url.starts_with("https://") 
+                && !token.is_empty() {
+                return Cred::userpass_plaintext(username_from_url.unwrap_or("git"), &token);
+            }
+            
+            // Let git's credential helper handle it
+            if allowed_types.contains(git2::CredentialType::DEFAULT) {
+                return Cred::default();
+            }
+            
+            Err(git2::Error::from_str("No suitable authentication method found"))
         });
 
         // Configure push options
@@ -960,14 +986,108 @@ impl GitService {
         push_options.remote_callbacks(callbacks);
 
         // Push the branch
-        let push_result = temp_remote.push(&[&refspec], Some(&mut push_options));
+        remote.push(&[&refspec], Some(&mut push_options))?;
 
-        // Clean up the temporary remote
-        let _ = repo.remote_delete(temp_remote_name);
+        Ok(())
+    }
 
-        // Check push result
-        push_result?;
-
+    /// List all local branches in the repository
+    pub fn list_local_branches(&self, repo_path: &Path) -> Result<Vec<String>, GitServiceError> {
+        let repo = Repository::open(repo_path)?;
+        let mut branches = Vec::new();
+        
+        // List all local branches
+        let branch_iter = repo.branches(Some(git2::BranchType::Local))?;
+        for branch_result in branch_iter {
+            let (branch, _) = branch_result?;
+            if let Some(name) = branch.name()? {
+                branches.push(name.to_string());
+            }
+        }
+        
+        Ok(branches)
+    }
+    
+    /// Push a specific branch to GitHub remote
+    pub fn push_branch_to_github(
+        &self,
+        repo_path: &Path,
+        branch_name: &str,
+        github_token: &str,
+    ) -> Result<(), GitServiceError> {
+        let repo = Repository::open(repo_path)?;
+        
+        // Check if the branch exists locally
+        let _branch = repo.find_branch(branch_name, git2::BranchType::Local)?;
+        
+        // Get the remote and its URL
+        let mut remote = repo.find_remote("origin")?;
+        let remote_url = remote.url().ok_or_else(|| {
+            GitServiceError::InvalidRepository("Remote origin has no URL".to_string())
+        })?.to_string();
+        
+        // Create refspec for pushing the branch
+        let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");
+        
+        // Set up authentication callbacks that support both SSH and HTTPS
+        let mut callbacks = RemoteCallbacks::new();
+        let token = github_token.to_string();
+        callbacks.credentials(move |_url, username_from_url, allowed_types| {
+            // For SSH authentication
+            if allowed_types.contains(git2::CredentialType::SSH_KEY) {
+                // Try SSH agent first
+                if let Some(username) = username_from_url {
+                    if let Ok(cred) = Cred::ssh_key_from_agent(username) {
+                        return Ok(cred);
+                    }
+                }
+                
+                // Fallback to SSH key files
+                if let Some(home) = dirs::home_dir() {
+                    // Try common SSH key paths
+                    let key_paths = [
+                        home.join(".ssh").join("id_rsa"),
+                        home.join(".ssh").join("id_ed25519"),
+                        home.join(".ssh").join("id_ecdsa"),
+                    ];
+                    
+                    for key_path in &key_paths {
+                        if key_path.exists() {
+                            if let Ok(cred) = Cred::ssh_key(
+                                username_from_url.unwrap_or("git"),
+                                None,
+                                key_path,
+                                None
+                            ) {
+                                return Ok(cred);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // For HTTPS authentication with GitHub token
+            if allowed_types.contains(git2::CredentialType::USER_PASS_PLAINTEXT) 
+                && remote_url.starts_with("https://") 
+                && !token.is_empty() {
+                return Cred::userpass_plaintext(username_from_url.unwrap_or("git"), &token);
+            }
+            
+            // Let git's credential helper handle it
+            if allowed_types.contains(git2::CredentialType::DEFAULT) {
+                return Cred::default();
+            }
+            
+            Err(git2::Error::from_str("No suitable authentication method found"))
+        });
+        
+        // Configure push options
+        let mut push_options = git2::PushOptions::new();
+        push_options.remote_callbacks(callbacks);
+        
+        // Push the branch
+        remote.push(&[&refspec], Some(&mut push_options))?;
+        
         Ok(())
     }
 
