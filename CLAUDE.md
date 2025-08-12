@@ -2,6 +2,35 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚨 Quality Assurance Requirements
+
+### MANDATORY: Testing and Verification After Implementation
+
+**CRITICAL RULE**: After implementing any feature or fix, you MUST:
+
+1. **Install Dependencies**
+   - Run `pnpm install` to ensure all dependencies are installed
+   - This is essential for both frontend and backend functionality
+
+2. **Run Existing Tests**
+   - Execute `npm run check` to run all validation checks
+   - Execute `cargo test --workspace` to run Rust tests
+   - Ensure no tests are broken by your changes
+
+3. **Start Development Server**
+   - Run `pnpm run dev` to start both frontend and backend
+   - Verify the application runs without errors
+   - Allow the user to manually test the changes
+
+4. **Database and Configuration in Worktrees**
+   - When working in a worktree, copy necessary data from the main branch:
+     - Database files (*.db, *.sqlite)
+     - Configuration files
+     - Test data and seed files
+   - This ensures the application has proper test data even in isolated worktrees
+
+**IMPORTANT**: Never mark a task as complete without running tests and starting the dev server for user verification.
+
 ## Essential Commands
 
 ### Development
