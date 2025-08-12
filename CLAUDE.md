@@ -23,10 +23,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Allow the user to manually test the changes
 
 4. **Database and Configuration in Worktrees**
-   - When working in a worktree, copy necessary data from the main branch:
-     - Database files (*.db, *.sqlite)
-     - Configuration files
-     - Test data and seed files
+   - When working in a worktree, copy necessary data from the main branch BEFORE running dev server:
+     ```bash
+     # Copy database files if they exist in main branch
+     cp ../../*.db . 2>/dev/null || echo "No database files to copy"
+     cp ../../*.sqlite . 2>/dev/null || echo "No SQLite files to copy"
+     
+     # Copy dev_assets_seed if it has data
+     cp -r ../../dev_assets_seed/* dev_assets_seed/ 2>/dev/null || echo "Using default seed data"
+     
+     # Note: If no database exists, it will be created automatically on first run
+     # The dev server will auto-copy from dev_assets_seed/ on startup
+     ```
+   - Database files (*.db, *.sqlite) from main branch
+   - Configuration files from main branch
+   - Test data and seed files from dev_assets_seed/
    - This ensures the application has proper test data even in isolated worktrees
 
 **IMPORTANT**: Never mark a task as complete without running tests and starting the dev server for user verification.

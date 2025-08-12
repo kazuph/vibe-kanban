@@ -43,6 +43,28 @@ impl StandardCodingAgentExecutor for ClaudeCode {
         let (shell_cmd, shell_arg) = get_shell_command();
         let claude_command = self.command_builder.build_initial();
 
+        // Create user message JSON to log the prompt
+        let user_message = ClaudeJson::User {
+            message: ClaudeMessage {
+                id: None,
+                message_type: None,
+                role: "user".to_string(),
+                model: None,
+                content: vec![ClaudeContentItem::Text {
+                    text: prompt.to_string(),
+                }],
+                stop_reason: None,
+            },
+            session_id: None,
+        };
+        
+        let user_message_json = serde_json::to_string(&user_message)
+            .unwrap_or_else(|_| "{}".to_string());
+        
+        // Escape the JSON for shell and create a command that echoes user message then runs Claude
+        let escaped_json = user_message_json.replace('\\', "\\\\").replace('"', "\\\"").replace('$', "\\$");
+        let combined_command = format!("echo \"{}\" && {}", escaped_json, claude_command);
+
         let mut command = Command::new(shell_cmd);
         command
             .kill_on_drop(true)
@@ -51,7 +73,7 @@ impl StandardCodingAgentExecutor for ClaudeCode {
             .stderr(Stdio::piped())
             .current_dir(current_dir)
             .arg(shell_arg)
-            .arg(&claude_command);
+            .arg(&combined_command);
 
         let mut child = command.group_spawn()?;
 
@@ -76,6 +98,28 @@ impl StandardCodingAgentExecutor for ClaudeCode {
             .command_builder
             .build_follow_up(&["--resume".to_string(), session_id.to_string()]);
 
+        // Create user message JSON to log the follow-up prompt
+        let user_message = ClaudeJson::User {
+            message: ClaudeMessage {
+                id: None,
+                message_type: None,
+                role: "user".to_string(),
+                model: None,
+                content: vec![ClaudeContentItem::Text {
+                    text: prompt.to_string(),
+                }],
+                stop_reason: None,
+            },
+            session_id: Some(session_id.to_string()),
+        };
+        
+        let user_message_json = serde_json::to_string(&user_message)
+            .unwrap_or_else(|_| "{}".to_string());
+        
+        // Escape the JSON for shell and create a command that echoes user message then runs Claude
+        let escaped_json = user_message_json.replace('\\', "\\\\").replace('"', "\\\"").replace('$', "\\$");
+        let combined_command = format!("echo \"{}\" && {}", escaped_json, claude_command);
+
         let mut command = Command::new(shell_cmd);
         command
             .kill_on_drop(true)
@@ -84,7 +128,7 @@ impl StandardCodingAgentExecutor for ClaudeCode {
             .stderr(Stdio::piped())
             .current_dir(current_dir)
             .arg(shell_arg)
-            .arg(&claude_command);
+            .arg(&combined_command);
 
         let mut child = command.group_spawn()?;
 
