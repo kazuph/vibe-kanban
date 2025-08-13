@@ -167,3 +167,91 @@ Runtime:
 - `FRONTEND_PORT`: Frontend dev port (default: 3000)
 - `HOST`: Backend host (default: 127.0.0.1)
 - `DISABLE_WORKTREE_ORPHAN_CLEANUP`: Debug flag for worktrees
+
+## 🔍 **Semantic Code Navigation with LSP**
+
+You are a professional coding agent with access to advanced semantic coding tools. You rely heavily on Language Server Protocol (LSP) features to efficiently navigate and understand this codebase without reading unnecessary code.
+
+### Core Principles for Intelligent Code Reading
+
+When reading code to answer questions or complete tasks, follow these principles:
+
+1. **Minimize Code Reading**: Avoid reading entire files unless absolutely necessary
+2. **Use Symbol Indexing**: Leverage symbol search tools to find specific code elements quickly  
+3. **Step-by-Step Information Acquisition**: Build understanding incrementally using targeted queries
+4. **Semantic Navigation**: Use LSP features to trace relationships between code elements
+
+### IMPORTANT: Always use semantic tools to minimize code reading
+
+- Use `search_symbol_from_index` to find specific symbols quickly (after indexing)
+- Use `get_document_symbols` to understand file structure without reading full content
+- Use `find_references` to trace symbol usage across the codebase
+- Use `get_definitions` to navigate to symbol definitions
+- Only read full files when absolutely necessary
+
+### Intelligent Code Reading Workflow
+
+1. **Index First**: Use `index_symbols` to build symbol index for fast searching
+2. **Search Symbols**: Use `search_symbol_from_index` with filters (name, kind, file, container)
+3. **Understand Structure**: Use `get_document_symbols` to get file organization
+4. **Trace Relationships**: Use `get_definitions`, `find_references` to understand connections
+5. **Targeted Reading**: Use standard file operations only for specific code sections
+
+### Available LSP Tools
+
+#### Symbol Management
+- `index_symbols` - Build symbol index for files matching pattern (e.g., '**/*.ts', '**/*.rs')
+- `search_symbol_from_index` - Fast search by name, kind (Class, Function, Method, etc.), file pattern, or container
+- `get_document_symbols` - Get all symbols in a specific file with hierarchical structure
+- `get_workspace_symbols` - Search symbols across the entire workspace
+
+#### Code Navigation
+- `get_definitions` - Navigate to symbol definitions  
+- `find_references` - Find all references to a symbol
+- `get_hover` - Get hover information (type signature, documentation)
+
+#### Code Quality
+- `get_diagnostics` - Get errors and warnings for a file
+- `get_all_diagnostics` - Get diagnostics for all files matching a pattern
+- `format_document` - Format code using language server
+
+#### Code Modification  
+- `rename_symbol` - Rename symbols across the codebase
+- `get_code_actions` - Get available quick fixes and refactorings
+
+### Symbol Types and Filtering
+
+Use the `kind` parameter to filter symbols by type:
+- **File, Module, Namespace, Package**: Organizational structures
+- **Class, Interface, Enum, Struct**: Type definitions  
+- **Method, Function, Constructor**: Executable code
+- **Property, Field, Variable, Constant**: Data storage
+- **TypeParameter**: Generic type parameters
+
+### Best Practices
+
+1. **Always prefer indexed searches** (tools with `_from_index` suffix) over reading entire files
+2. **Use semantic navigation** to understand code relationships efficiently
+3. **Filter searches** using kind, container, and file patterns to get precise results
+4. **Build understanding incrementally** rather than reading large amounts of code upfront
+5. **Use diagnostics** to identify and fix issues without manual code inspection
+
+### Language-Specific Features
+
+#### TypeScript/JavaScript (`mcp__typescript-lsmcp__*`)
+- Full LSP support with rich type information
+- Auto-import suggestions and code completion
+- Advanced refactoring capabilities
+
+#### Rust (`mcp__rust-lsmcp__*`) 
+- rust-analyzer integration
+- Comprehensive symbol indexing
+- Macro and trait support
+
+Always leverage these semantic tools to work efficiently and avoid unnecessary code reading.
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
